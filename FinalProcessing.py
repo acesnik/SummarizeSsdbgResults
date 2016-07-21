@@ -7,29 +7,7 @@ __author__ = "anthonycesnik"
 __date__ = "$Aug 1, 2015 5:29:41 PM$"
 
 import sys
-
-#Read in fasta file
-def read_fasta():
-  try:
-    pepAll = open(sys.argv[2], 'r')
-    allPep = {}
-    header, seq = '',''
-    starting = True
-    count = 0
-    for faLine in pepAll:
-      if len(faLine.split(' ')) == 1: seq += faLine.strip()
-      elif starting:
-        header = faLine.split(' ')[0][1:]
-        starting = False
-      else:
-        allPep[header] = seq
-        count += 1
-        if count % 10000 == 0: print "Read in " + str(count) + " fasta entries"
-        seq = ''
-        header = faLine.split(' ')[0][1:]
-    pepAll.close()  
-    return allPep
-  except(IOError): print "IOError"
+import utility
 
 #Evaluate arbitrary ends of peptide for being tryptic
 #def sav_eval(descrips, line, allPep):
@@ -152,7 +130,7 @@ if len(sys.argv) < 4: print USAGE
 else:
   #Infiles
   folderList = []
-  allPep = read_fasta() #fasta file
+  allPep = utility.read_fasta() #fasta file
   for i in range (3, len(sys.argv)):
     folderList.append(sys.argv[i])
 
