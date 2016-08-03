@@ -9,6 +9,7 @@
 
 import sys
 import utility
+import os.path
 
 __author__ = "anthonycesnik"
 __date__ = "$Apr 29, 2015 8:24:16 PM$"
@@ -54,24 +55,36 @@ def __main__():
         try:
             print "opening outFile " + sys.argv[1]
             out_file = open(sys.argv[1], 'w')
-            out_file.write("\t\t\tcountseqvar\t\t\t\t\t\t\t\tseqvarfdr\t\t\t\t\n")
-            out_file.write("folder\tline\tsapD\tTotalPsmsNoRaggedEnds\tTotalUniqPepsNoRaggedEnds\tUniProtPsms\tUniProtUniqPeps\tSapPsms\tSapUniqPeps\tJuncPsms\tJuncUniqPeps\tTotalFdr\tUniProtFdr\tSapFdr\tJuncFdr\n")
+            out_file.write("folder\tline\tsapD\tTotalPsmsNoRaggedEnds\tTotalUniqPepsNoRaggedEnds\tUniProtPsms\t"
+                           "UniProtUniqPeps\tSapPsms\tSapUniqPeps\tJuncPsms\tJuncUniqPeps\tsav_and_UniProt_pep\t"
+                           "junc_and_UniProt_pep\tsav_and_UniProt_psms\tjunc_and_UniProt_psms\tTotalFdr\tUniProtFdr"
+                           "\tSapFdr\tJuncFdr\tSavUniFDR\tJuncUniFDR\n")
             for folder in folder_list:
                 allTarget, allDecoy, allFdr, uniTarget,uniDecoy, savTarget, sapDecoy, juncTarget, juncDecoy = 0, 0, 0, 0, 0, 0, 0, 0, 0 #seqvarfdr
+                sav_and_UniProt_pep, junc_and_UniProt_pep, sav_and_UniProt_decoy, junc_and_UniProt_decoy, sav_and_UniProt_target, junc_and_UniProt_target = 0, 0, 0, 0, 0, 0 # new counters
                 totalPsms, totalPeps,uniPsms,uniPeps,savPsms,savPeps,juncPsms,juncPeps = 0,0,0,0,0,0,0,0 #countseqvars
+                sav_and_UniProt_psms, junc_and_UniProt_psms = 0, 0
                 invisSap = ['I', 'L'] #the leucine - isoleucine transition is invisible to mass spec
 
                 # Print the folder and room for line and cutoff info
                 out_file.write(folder + "\t\t\t")
 
+                unique_peptide_file = folder + "/unique_peptides.tsv"
+                if not os.path.isfile(unique_peptide_file): unique_peptide_file = folder + "/aggregate.unique_peptides.tsv"
+                if not os.path.isfile(unique_peptide_file): print "unique peptides file in " + folder + " is not valid."; exit(2);
+
+                psms_file = folder + "/PSMs.tsv"
+                if not os.path.isfile(psms_file): psms_file = folder + "/aggregate.PSMs.tsv"
+                if not os.path.isfile(psms_file): print "psms file in " + folder + " is not valid."; exit(2);
+
                 # Count sequence variants in the unique peptides folder
-                print "opening " + folder + "/unique_peptides.tsv"
-                uniqPeps = open(folder + "/unique_peptides.tsv", 'r')
-                with open(folder + "/unique_peptides.tsv", 'r') as uniqPeps:
+                print "opening " + unique_peptide_file
+                with open(unique_peptide_file, 'r') as uniqPeps:
                     for line in uniqPeps:
                         line = line.split('\t')
                         if line[0][:8] == 'Filename': continue
                         elif float(line[30]) < 1 and line[26] == 'True':
+                            totalPeps += 1
                             description = line[13].split('|')
                             description = description[2].split(' ')
                             if description[0] in ['pep:sap', 'pep:sav']:
@@ -85,18 +98,22 @@ def __main__():
                                 # Evaluate arbitrary ends of peptide for being tryptic, and if it's tryptic, decide whether to count it as a sap peptide
                                 beginning_is_tryptic, end_is_tryptic = sap_eval(description, line, fasta)
                                 if beginning_is_tryptic and end_is_tryptic:
-                                    totalPeps += 1
                                     contains_sav_position = int(line[14]) <= 34 and int(line[15]) >= 34
                                     is_invisible_transition = reference_aa in invisSap and alternate_aa in invisSap
                                     if contains_sav_position and not is_invisible_transition:
                                         savPeps += 1
-                            elif line[11].find("UniProt:") != -1: uniPeps += 1
-                            elif description[0] == 'pep:splice': juncPeps += 1
-                            else: totalPeps += 1
+                                        if line[11].find("UniProt:") != -1: sav_and_UniProt_pep += 1
+                                else:
+                                    totalPeps -= 1
+                                    continue
+                            if description[0] == 'pep:splice':
+                                juncPeps += 1
+                                if line[11].find("UniProt:") != -1: junc_and_UniProt_pep += 1
+                            if line[11].find("UniProt:") != -1: uniPeps += 1
 
                 # Work with PSMs folder for each metric
-                print "opening " + folder + "/PSMs.tsv"
-                with open(folder + "/PSMs.tsv", "r") as psms:
+                print "opening " + psms_file
+                with open(psms_file, "r") as psms:  # May need to change the name.
                     for line in psms:
                         line = line.split('\t')
                         if line[0][:8] == 'Filename': continue
@@ -107,6 +124,8 @@ def __main__():
                         if not float(line[30]) < 1: break
                         if line[26] == 'True':
                             # countseqvars
+                            allTarget += 1
+                            totalPsms += 1
                             if description[0] in ['pep:sap', 'pep:sav']:
                                 if len(description) == 16: sap = description[7].split(':') # snpefftopeptides
                                 elif len(description) == 12: sap = description[5].split(':') # ProteogenomicDBGenerator
@@ -118,23 +137,30 @@ def __main__():
                                 # Evaluate arbitrary ends of peptide for being tryptic, and if it's tryptic, decide whether to count it as a sap peptide
                                 beginning_is_tryptic, end_is_tryptic = sap_eval(description, line, fasta)
                                 if beginning_is_tryptic and end_is_tryptic:
-                                    totalPsms += 1
-                                    allTarget += 1
+
                                     contains_sav_position = int(line[14]) <= 34 and int(line[15]) >= 34
                                     is_invisible_transition = reference_aa in invisSap and alternate_aa in invisSap
                                     if contains_sav_position and not is_invisible_transition:
                                         savPsms += 1
                                         savTarget += 1
-                            elif line[11].find("UniProt:") != -1:
-                                uniPsms += 1
-                                uniTarget += 1
-                            elif description[0] == 'pep:splice':
+                                        if line[11].find("UniProt:") != -1:
+                                            sav_and_UniProt_psms += 1
+                                            sav_and_UniProt_target += 1
+                                else:
+                                    totalPsms -= 1
+                                    continue
+                            if description[0] == 'pep:splice':
                                 juncPsms += 1
                                 juncTarget += 1
-                            else:
-                                totalPsms += 1
-                                allTarget += 1
+                                if line[11].find("UniProt:") != -1:
+                                    junc_and_UniProt_psms += 1
+                                    junc_and_UniProt_target += 1
+                            if line[11].find("UniProt:") != -1:
+                                uniPsms += 1
+                                uniTarget += 1
+
                         else:
+                            allDecoy += 1
                             if description[0] in ['pep:sap', 'pep:sav']:
                                 if len(description) == 16: sap = description[7].split(':') # snpefftopeptides
                                 elif len(description) == 12: sap = description[5].split(':') # ProteogenomicDBGenerator
@@ -146,17 +172,23 @@ def __main__():
                                 # If it's tryptic, decide whether to count it as a sap peptide
                                 beginning_is_tryptic, end_is_tryptic = sap_eval(description, line, fasta)
                                 if beginning_is_tryptic and end_is_tryptic:
-                                    allDecoy += 1
                                     contains_sav_position = int(line[14]) <= 34 and int(line[15]) >= 34
                                     is_invisible_transition = reference_aa in invisSap and alternate_aa in invisSap
                                     if contains_sav_position and not is_invisible_transition:
                                         sapDecoy += 1 # must contain sap position
-                            elif line[11].find("UniProt:") != -1: uniDecoy += 1
-                            elif description[0] == 'pep:splice': juncDecoy += 1
-                            else: totalPeps += 1
+                                        if line[11].find("UniProt:") != -1: sav_and_UniProt_decoy += 1
+                                else:
+                                    allDecoy -= 1
+                                    continue
+                            if description[0] == 'pep:splice':
+                                juncDecoy += 1
+                                if line[11].find("UniProt:") != -1: junc_and_UniProt_decoy += 1
+                            if line[11].find("UniProt:") != -1: uniDecoy += 1
 
-                # write to output: sumAggregate, countseqvar
-                out_file.write(str(totalPsms) + '\t' + str(totalPeps) + '\t' + str(uniPsms) + '\t' + str(uniPeps) + '\t' + str(savPsms) + '\t' + str(savPeps) + '\t' + str(juncPsms) + '\t' + str(juncPeps) + '\t')
+                out_file.write(str(totalPsms) + '\t' + str(totalPeps) + '\t' + str(uniPsms) + '\t' + str(uniPeps) +
+                               '\t' + str(savPsms) + '\t' + str(savPeps) + '\t' + str(juncPsms) + '\t' + str(juncPeps) +
+                               '\t' + str(sav_and_UniProt_pep) + '\t' + str(junc_and_UniProt_pep) + '\t' +
+                               str(sav_and_UniProt_psms) + '\t'+str(junc_and_UniProt_psms) + '\t')
 
                 # seqvar write
                 try: allFdr = float(allDecoy)/float(allTarget) * 100
@@ -167,7 +199,14 @@ def __main__():
                 except ZeroDivisionError: sapFdr = 'N/A'
                 try: juncFdr = float(juncDecoy)/float(juncTarget) * 100
                 except ZeroDivisionError: juncFdr = 'N/A'
-                out_file.write(str(allFdr) + '\t' + str(uniFdr) + '\t' + str(sapFdr) + '\t' + str(juncFdr) + '\n')
+
+                try: savUniFDR = float(sav_and_UniProt_decoy) / float(sav_and_UniProt_target) * 100
+                except ZeroDivisionError: savUniFDR = 'N/A'
+                try: juncUniFDR = float(junc_and_UniProt_decoy) / float(junc_and_UniProt_target) * 100
+                except ZeroDivisionError: juncUniFDR = 'N/A'
+
+                out_file.write(str(allFdr) + '\t' + str(uniFdr) + '\t' + str(sapFdr) + '\t' + str(juncFdr) + '\t' +
+                               str(savUniFDR) + '\t' + str(juncUniFDR) + '\n')
 
         # except(IndexError): print "error processing a line in PSMs file"
         except IOError: print "Input/output error"
