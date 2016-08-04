@@ -1,0 +1,2 @@
+folder	line	sapD	TotalPsmsNoRaggedEnds	TotalUniqPepsNoRaggedEnds	UniProtPsms	UniProtUniqPeps	SapPsms	SapUniqPeps	JuncPsms	JuncUniqPeps	sav_and_UniProt_pep	junc_and_UniProt_pep	sav_and_UniProt_psms	junc_and_UniProt_psms	TotalFdr	UniProtFdr	SapFdr	JuncFdr	SavUniFDR	JuncUniFDR
+/cygdrive/c/Users/lwurtz/Documents/summarizeSsdbgResults_testing/6.test_with_MorpheusRev142			406859	62782	27898	2362	869	188	31	8	8	1	40	2	1.00222662413	0.960642339953	1.26582278481	6.45161290323	0.0	0.0
